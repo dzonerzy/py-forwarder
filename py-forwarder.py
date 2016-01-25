@@ -1,10 +1,15 @@
 """
+
 Py-forwarder
 
-Trivial port forwarder with multiple connection handling
+Trivial port forwarder with multiple connection handling and packets dump
 Author: Daniele Linguaglossa
-"""
 
+check out for updates on https://github.com/dzonerzy/py-forwarder
+
+"""
+import BaseHTTPServer
+import StringIO
 import socket
 import _socket
 import sys
@@ -23,6 +28,7 @@ class PortForwarder:
     event = threading.Event()
     dumpfile = None
     dumpformat = None
+    dumphttp = False
     know_client = []
 
     class ForwardGeneralException(socket.error):
@@ -37,9 +43,20 @@ class PortForwarder:
         def __init__(self):
             self.message = "Can't connect to upstream port"
 
-    def __init__(self, address_from, address_to, dumpfile=None, dumpformat=None):
+    def __init__(self, address_from, address_to, dumpfile=None, dumpformat=None, dumphttp=False):
         class MySocket(_socket.SocketType):
             address = None
+
+            class HTTPRequest(BaseHTTPServer.BaseHTTPRequestHandler):
+                def __init__(self, request_text):
+                    self.rfile = StringIO.StringIO(request_text)
+                    self.raw_requestline = self.rfile.readline()
+                    self.error_code = self.error_message = None
+                    self.parse_request()
+
+                def send_error(self, code, message):
+                    self.error_code = code
+                    self.error_message = message
 
             class Dumper:
                 data = None
@@ -70,6 +87,15 @@ class PortForwarder:
                 super(MySocket, self).bind(self.address)
 
             def sendall(self, forwarder, data, flags=None):
+                if forwarder.dumphttp:
+                    try:
+                        request = self.HTTPRequest(data)
+                        if request.command in ["GET", "POST"]:
+                            print "[HTTP] {} - {} - {}".format(request.command,
+                                                               request.headers.getheader("host"),
+                                                               request.protocol_version.strip())
+                    except AttributeError:
+                        pass  # skip maybe HTTPS or malformed
                 if len(data) > 0:
                     if forwarder.dumpfile is not None:
                         with open(forwarder.dumpfile, "a") as dump:
@@ -101,12 +127,12 @@ class PortForwarder:
                     self.shutdown(1)
                     return None
                 return data
-
+        self.dumphttp = dumphttp
         self.dumpfile = dumpfile
         self.dumpformat = dumpformat
         socket.socket = MySocket  # dirty hack to modify address tuple at runtime
         self.fsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sys.excepthook = self.selfexcept
+        sys.excepthook = self.self_except
         self.address_from = tuple(address_from.split(":"))
         self.address_to = tuple(address_to.split(":"))
         self.fsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -176,14 +202,14 @@ class PortForwarder:
             except Exception:
                 return
 
-    def selfexcept(self, exctype, value, traceback):
-        if exctype in [self.ForwardCannotBindAddress, self.ForwardUpstreamConnect]:
+    def self_except(self, exc_type, value, traceback):
+        if exc_type in [self.ForwardCannotBindAddress, self.ForwardUpstreamConnect]:
             sys.stderr.write("[ERROR] " + value.message + "\n")
-        if exctype in [self.ForwardGeneralException]:
+        if exc_type in [Exception]:
             sys.stderr.write("[CRITICAL] " + value.message + "\n")
         sys.exit(-1)
 
-def DumpFormat(v):
+def dump_format(v):
     if v in ["RAW", "HEX"]:
         return v
     else:
@@ -199,10 +225,13 @@ if __name__ == '__main__':
     dumper = parser.add_argument_group('Packet dump')
     dumper.add_argument("-d", "--dump-file",
                         help="If enabled create a dump of traffic between ports", required=False)
-    dumper.add_argument("-df", "--dump-format", type=DumpFormat,
+    dumper.add_argument("-df", "--dump-format", type=dump_format,
                         help="Format are RAW or HEX", required=False)
+    packet = parser.add_argument_group('Packet inspector')
+    packet.add_argument("--dump-http-req", action='store_true',
+                        help="If enabled show a small dump about each HTTP request", required=False)
     args = parser.parse_args()
     if args.dump_file and args.dump_format is None:
         parser.error("Switch -d require a format, use -df to specify one.")
     print "[!] Starting port forwarding ({0} => {1})".format(args.from_addr, args.to_addr)
-    PortForwarder(args.from_addr, args.to_addr, args.dump_file, args.dump_format)
+    PortForwarder(args.from_addr, args.to_addr, args.dump_file, args.dump_format, args.dump_http_req)
