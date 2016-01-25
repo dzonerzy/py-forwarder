@@ -210,8 +210,6 @@ class PortForwarder:
             sys.stderr.write("[CRITICAL] " + value.message + "\n")
         sys.exit(-1)
 
-    def print_queue(self):
-        pass
 
 def dump_format(v):
     if v in ["RAW", "HEX"]:
