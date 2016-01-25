@@ -22,6 +22,7 @@ class PortForwarder:
     total_received = 0
     kill_all_threads = 0
     dumpfile = None
+    dumpformat = None
 
     class ForwardGeneralException(socket.error):
         def __init__(self):
@@ -35,7 +36,7 @@ class PortForwarder:
         def __init__(self):
             self.message = "Can't connect to upstream port"
 
-    def __init__(self, address_from, address_to, dumpfile=None):
+    def __init__(self, address_from, address_to, dumpfile=None, dumpformat=None):
         class MySocket(_socket.SocketType):
             address = None
 
@@ -71,8 +72,11 @@ class PortForwarder:
                 if len(data) > 0:
                     if forwarder.dumpfile is not None:
                         with open(forwarder.dumpfile, "a") as dump:
-                            packet = self.Dumper(data)
-                            dump.write(packet.dump())
+                            if forwarder.dumpformat == "HEX":
+                                packet = self.Dumper(data)
+                                dump.write(packet.dump())
+                            elif forwarder.dumpformat == "RAW":
+                                dump.write(data)
                             dump.close()
                     forwarder.total_sent += len(data)
                 else:
@@ -85,8 +89,11 @@ class PortForwarder:
                 if len(data) > 0:
                     if forwarder.dumpfile is not None:
                         with open(forwarder.dumpfile, "a") as dump:
-                            packet = self.Dumper(data, 1)
-                            dump.write(packet.dump())
+                            if forwarder.dumpformat == "HEX":
+                                packet = self.Dumper(data, 1)
+                                dump.write(packet.dump())
+                            elif forwarder.dumpformat == "RAW":
+                                dump.write(data)
                             dump.close()
                     forwarder.total_received += len(data)
                 else:
@@ -95,6 +102,7 @@ class PortForwarder:
                 return data
 
         self.dumpfile = dumpfile
+        self.dumpformat = dumpformat
         socket.socket = MySocket  # dirty hack to modify address tuple at runtime
         self.fsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sys.excepthook = self.selfexcept
@@ -172,6 +180,11 @@ class PortForwarder:
             sys.stderr.write("[CRITICAL] " + value.message + "\n")
         sys.exit(-1)
 
+def DumpFormat(v):
+    if v in ["RAW", "HEX"]:
+        return v
+    else:
+        raise argparse.ArgumentTypeError("String '%s' does not match required format" % (v,))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -180,8 +193,13 @@ if __name__ == '__main__':
                                help="Forward this port to another, format is <ip:port>", required=True)
     portforwarder.add_argument("-t", "--to-addr",
                                help="Port to be forwarded, format is <ip:port>", required=True)
-    portforwarder.add_argument("-d", "--dump-file",
-                               help="If enabled create a dump of traffic between ports", required=False)
+    dumper = parser.add_argument_group('Packet dump')
+    dumper.add_argument("-d", "--dump-file",
+                        help="If enabled create a dump of traffic between ports", required=False)
+    dumper.add_argument("-df", "--dump-format", type=DumpFormat,
+                        help="Format are RAW or HEX", required=False)
     args = parser.parse_args()
+    if args.dump_file and args.dump_format is None:
+        parser.error("Switch -d require a format, use -df to specify one.")
     print "[+] Starting port forwarding ({0} => {1})".format(args.from_addr, args.to_addr)
-    PortForwarder(args.from_addr, args.to_addr, args.dump_file)
+    PortForwarder(args.from_addr, args.to_addr, args.dump_file, args.dump_format)
