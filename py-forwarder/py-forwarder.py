@@ -15,9 +15,9 @@ import sys
 import threading
 import time
 
-from core import *
-from exceptions import *
 
+from errors import ForwardUpstreamConnect, ForwardCannotBindAddress
+from core import MySocket, PluginCore
 
 
 class PortForwarder:
@@ -36,8 +36,8 @@ class PortForwarder:
         self.dumphttp = config.dump_http_req if config.dump_http_req is not None else None
         self.dumpfile = config.dump_file if config.dump_file is not None else None
         self.dumpformat = config.dump_format if config.dump_format is not None else None
-        socket.socket = MySocket  # dirty hack to modify address tuple at runtime
-        self.fsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        socket.socket = MySocket
+        self.fsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, config.plugin_dir)
         sys.excepthook = self.self_except
         self.address_from = tuple(config.from_addr.split(":"))
         self.address_to = tuple(config.to_addr.split(":"))
@@ -138,6 +138,9 @@ if __name__ == '__main__':
     packet = parser.add_argument_group('Packet inspector')
     packet.add_argument("--dump-http-req", action='store_true',
                         help="If enabled show a small dump about each HTTP request", required=False)
+    plugins = parser.add_argument_group('Plugins')
+    plugins.add_argument("-dir", "--plugin-dir",
+                         help="A folder containing plugins", required=False)
     args = parser.parse_args()
     if args.dump_file and args.dump_format is None:
         parser.error("Switch -d require a format, use -df to specify one.")

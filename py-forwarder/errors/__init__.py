@@ -1,6 +1,5 @@
 from socket import error as socket_error
 
-
 class ForwardGeneralException(socket_error):
     def __init__(self):
         self.message = "An unknown error happen"

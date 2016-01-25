@@ -1,10 +1,16 @@
 import _socket
+import sys
+import os
+import glob
 from BaseHTTPServer import BaseHTTPRequestHandler
 from StringIO import StringIO
 
 
 class MySocket(_socket.SocketType):
     address = None
+
+    def __init__(self, *args):
+        super(MySocket, self).__init__(args[0], args[1])
 
     class HTTPRequest(object, BaseHTTPRequestHandler):
         def __init__(self, request_text):
@@ -86,3 +92,4 @@ class MySocket(_socket.SocketType):
             self.shutdown(1)
             return None
         return data
+
