@@ -16,7 +16,6 @@ import argparse
 
 class PortForwarder:
     fsock = None
-    sock_reuse_address = True
     address_from = ()
     address_to = ()
     total_sent = 0
@@ -61,11 +60,11 @@ class PortForwarder:
                     return buf
 
             def connect(self, address):
-                self.address = ([address[0], int(address[1])])
+                self.address = tuple([address[0], int(address[1])])
                 super(MySocket, self).connect(self.address)
 
             def bind(self, address):
-                self.address = ([address[0], int(address[1])])
+                self.address = tuple([address[0], int(address[1])])
                 super(MySocket, self).bind(self.address)
 
             def sendall(self, forwarder, data, flags=None):
