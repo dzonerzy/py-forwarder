@@ -17,6 +17,7 @@ import threading
 import time
 import select
 import argparse
+import Queue
 
 
 class PortForwarder:
@@ -30,6 +31,7 @@ class PortForwarder:
     dumpformat = None
     dumphttp = False
     know_client = []
+    printqueue = Queue.Queue(0)
 
     class ForwardGeneralException(socket.error):
         def __init__(self):
@@ -43,7 +45,7 @@ class PortForwarder:
         def __init__(self):
             self.message = "Can't connect to upstream port"
 
-    def __init__(self, address_from, address_to, dumpfile=None, dumpformat=None, dumphttp=False):
+    def __init__(self, config):
         class MySocket(_socket.SocketType):
             address = None
 
@@ -91,9 +93,8 @@ class PortForwarder:
                     try:
                         request = self.HTTPRequest(data)
                         if request.command in ["GET", "POST"]:
-                            print "[HTTP] {} - {} - {}".format(request.command,
-                                                               request.headers.getheader("host"),
-                                                               request.protocol_version.strip())
+                            print "[HTTP] {} => {}".format(request.command,
+                                                               request.headers.getheader("host"))
                     except AttributeError:
                         pass  # skip maybe HTTPS or malformed
                 if len(data) > 0:
@@ -127,14 +128,14 @@ class PortForwarder:
                     self.shutdown(1)
                     return None
                 return data
-        self.dumphttp = dumphttp
-        self.dumpfile = dumpfile
-        self.dumpformat = dumpformat
+        self.dumphttp = config.dump_http_req if config.dump_http_req is not None else None
+        self.dumpfile = config.dump_file if config.dump_file is not None else None
+        self.dumpformat = config.dump_format if config.dump_format is not None else None
         socket.socket = MySocket  # dirty hack to modify address tuple at runtime
         self.fsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sys.excepthook = self.self_except
-        self.address_from = tuple(address_from.split(":"))
-        self.address_to = tuple(address_to.split(":"))
+        self.address_from = tuple(config.from_addr.split(":"))
+        self.address_to = tuple(config.to_addr.split(":"))
         self.fsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             self.fsock.bind(self.address_from)
@@ -167,8 +168,8 @@ class PortForwarder:
                 client_thread.start()
             except KeyboardInterrupt:
                 print "\n[!] Byeeee"
-                print "[INFO] Total byte sent {0}".format(self.total_sent)
-                print "[INFO] Total byte received {0}".format(self.total_received)
+                print "[INFO] Total bytes sent {0}".format(self.total_sent)
+                print "[INFO] Total bytes received {0}".format(self.total_received)
                 self.event.set()
             except self.ForwardUpstreamConnect():
                 raise self.ForwardUpstreamConnect()
@@ -209,6 +210,9 @@ class PortForwarder:
             sys.stderr.write("[CRITICAL] " + value.message + "\n")
         sys.exit(-1)
 
+    def print_queue(self):
+        pass
+
 def dump_format(v):
     if v in ["RAW", "HEX"]:
         return v
@@ -234,4 +238,4 @@ if __name__ == '__main__':
     if args.dump_file and args.dump_format is None:
         parser.error("Switch -d require a format, use -df to specify one.")
     print "[!] Starting port forwarding ({0} => {1})".format(args.from_addr, args.to_addr)
-    PortForwarder(args.from_addr, args.to_addr, args.dump_file, args.dump_format, args.dump_http_req)
+    PortForwarder(args)
