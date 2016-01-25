@@ -124,6 +124,7 @@ class PortForwarder:
         while not self.kill_all_threads:
             try:
                 client = self.fsock.accept()
+                print "[INFO] Received connection from {}".format(client[1][0])
                 tsock = self.connect_upstream()
                 client_thread = threading.Thread(target=self.handle_connection, args=(client[0], tsock))
                 client_thread.start()
