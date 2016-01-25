@@ -20,9 +20,10 @@ class PortForwarder:
     address_to = ()
     total_sent = 0
     total_received = 0
-    kill_all_threads = 0
+    event = threading.Event()
     dumpfile = None
     dumpformat = None
+    know_client = []
 
     class ForwardGeneralException(socket.error):
         def __init__(self):
@@ -129,10 +130,12 @@ class PortForwarder:
 
     def serve(self):
         self.fsock.listen(1)
-        while not self.kill_all_threads:
+        while not self.event.isSet():
             try:
                 client = self.fsock.accept()
-                print "[INFO] Received connection from {}".format(client[1][0])
+                if client[1][0] not in self.know_client:
+                    print "[*] Received connection from {}".format(client[1][0])
+                    self.know_client.append(client[1][0])
                 tsock = self.connect_upstream()
                 client_thread = threading.Thread(target=self.handle_connection, args=(client[0], tsock))
                 client_thread.start()
@@ -140,7 +143,7 @@ class PortForwarder:
                 print "\n[!] Byeeee"
                 print "[INFO] Total byte sent {0}".format(self.total_sent)
                 print "[INFO] Total byte received {0}".format(self.total_received)
-                self.kill_all_threads = True
+                self.event.set()
             except self.ForwardUpstreamConnect():
                 raise self.ForwardUpstreamConnect()
 
@@ -155,7 +158,7 @@ class PortForwarder:
     def handle_connection(self, clientsock, tsock):
         inputs = [clientsock, tsock]
         while True:
-            if self.kill_all_threads:
+            if self.event.isSet():
                 return
             try:
                 read_ready, write_ready, ex_ready = select.select(inputs, inputs, [])
@@ -201,5 +204,5 @@ if __name__ == '__main__':
     args = parser.parse_args()
     if args.dump_file and args.dump_format is None:
         parser.error("Switch -d require a format, use -df to specify one.")
-    print "[+] Starting port forwarding ({0} => {1})".format(args.from_addr, args.to_addr)
+    print "[!] Starting port forwarding ({0} => {1})".format(args.from_addr, args.to_addr)
     PortForwarder(args.from_addr, args.to_addr, args.dump_file, args.dump_format)
