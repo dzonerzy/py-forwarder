@@ -15,8 +15,9 @@ import sys
 import threading
 import time
 
-from core import MySocket
-from exceptions import ForwardCannotBindAddress, ForwardUpstreamConnect
+from core import *
+from exceptions import *
+
 
 
 class PortForwarder:
