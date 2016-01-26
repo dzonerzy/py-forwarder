@@ -6,14 +6,13 @@ import os
 from BaseHTTPServer import BaseHTTPRequestHandler
 from StringIO import StringIO
 
-
 class MySocket(_socket.SocketType):
     address = None
 
     def __init__(self, *args):
         super(MySocket, self).__init__(args[0], args[1])
 
-    class HTTPRequest(object, BaseHTTPRequestHandler):
+    class HTTPReq(object, BaseHTTPRequestHandler):
         def __init__(self, request_text):
             self.rfile = StringIO(request_text)
             self.raw_requestline = self.rfile.readline()
@@ -34,14 +33,14 @@ class MySocket(_socket.SocketType):
             self.inpacket = inpacket
 
         def dump(self, length=16):
-            N = 0
+            n = 0
             buf = "[IN PACKET]\n" if self.inpacket else "[OUT PACKET]\n"
             while self.data:
                 s, self.data = self.data[:length], self.data[length:]
                 hexdata = ' '.join(["%02X" % ord(x) for x in s])
                 s = s.translate(self.FILTER)
-                buf += "%04X   %-*s   %s\n" % (N, length * 3, hexdata, s)
-                N += length
+                buf += "%04X   %-*s   %s\n" % (n, length * 3, hexdata, s)
+                n += length
             return buf
 
     def connect(self, address):
@@ -55,7 +54,7 @@ class MySocket(_socket.SocketType):
     def sendall(self, forwarder, data, flags=None):
         if forwarder.dumphttp:
             try:
-                request = self.HTTPRequest(data)
+                request = self.HTTPReq(data)
                 if request.command in ["GET", "POST"]:
                     print "[HTTP] {} => {}".format(request.command,
                                                    request.headers.getheader("host"))
@@ -98,15 +97,23 @@ class MySocket(_socket.SocketType):
 
 
 class PluginHook(MySocket):
+    name = None
+
     def __init__(self, *args):
         if args[2] is not None:
             files = glob.glob("{}/*.py".format(args[2]))
             sys.path.insert(0, os.path.abspath(args[2]))
             for py in files:
                 py = os.path.basename(py).replace(".py", "")
-                exec "from {} import Extender as MainCore{}".format(py, py)
-                exec "self.__class__ = MainCore{}".format(py)
-                exec "__builtin__.plugin_hook = MainCore{}".format(py)
+                try:
+                    exec "from {} import Extender as MainCore{}".format(py, py)
+                    exec "self.name = MainCore{}.name".format(py)
+                    if len(args) > 3 and args[3] is not None:
+                        print "[*] Loading module: {}".format(self.name)
+                    exec "self.__class__ = MainCore{}".format(py)
+                    exec "__builtin__.plugin_hook = MainCore{}".format(py)
+                except:
+                    pass
             super(PluginHook, self).__init__(args[0], args[1])
         else:
             super(PluginHook, self).__init__(args[0], args[1])

@@ -54,7 +54,7 @@ class PortForwarder:
     def retry(self, times, sleep):
         while times:
             try:
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, self.config.plugin_dir)
                 sock.connect(self.address_to)
                 return sock
             except socket.error:
@@ -64,6 +64,7 @@ class PortForwarder:
         raise ForwardUpstreamConnect()
 
     def serve(self):
+        self.check_plugins()
         self.fsock.listen(1)
         while not self.event.isSet():
             try:
@@ -81,6 +82,12 @@ class PortForwarder:
                 self.event.set()
             except ForwardUpstreamConnect():
                 raise ForwardUpstreamConnect()
+
+    def check_plugins(self):
+        if self.config.plugin_dir is not None:
+            socket.socket = PluginCore
+            socket.socket(socket.AF_INET, socket.SOCK_STREAM, self.config.plugin_dir, 1)
+        socket.socket = MainCore
 
     def connect_upstream(self):
         socket.socket = PluginCore if self.config.plugin_dir is not None else MainCore
