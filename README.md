@@ -3,16 +3,16 @@ Simple and trivial port forwarder written in python
 
 usage example:
 
-Simple port forwarding
+# Simple port forwarding
 
     py-forwarder.py -f 127.0.0.1:8080 -t 127.0.0.1:443
 
-Port forwarding with packets dump
+# Port forwarding with packets dump
 
     py-forwarder.py -f 127.0.0.1:8080 -t 127.0.0.1:443 -d dumpfile.dmp -df RAW
     py-forwarder.py -f 127.0.0.1:8080 -t 127.0.0.1:443 -d dumpfile.dmp -df HEX
 
-File output
+# File output
 
     [IN PACKET]
     0000   48 54 54 50 2F 31 2E 31 20 32 30 30 20 4F 4B 0D    HTTP/1.1 200 OK.
@@ -41,11 +41,11 @@ File output
     0170   63 6C 75 73 74 65 72 0D 0A 43 6F 6E 6E 65 63 74    cluster..Connect
     0180   69 6F 6E 3A 20 63 6C 6F 73 65 0D 0A 0D 0A          ion: close....
 
-HTTP Packet inspect
+# HTTP Packet inspect
 
     py-forwarder.py -f 127.0.0.1:8080 -t 127.0.0.1:443 --dump-http-req
 
-Output
+# Output
 
     dzonerzy$ python py-forwarder.py -f 0.0.0.0:8888 -t 127.0.0.1:3128 --dump-http-req
     [!] Starting port forwarding (0.0.0.0:8888 => 127.0.0.1:3128)
@@ -63,8 +63,44 @@ Output
     [INFO] Total byte sent 26118
     [INFO] Total byte received 174743
 
+# Modules system
 
-Help
+Py-forwarder may be extended in any way it just need to include a modules folder using <b>-dir</b> switch:
+
+    py-forwarder.py -f 127.0.0.1:8080 -t 127.0.0.1:443 --dir modules/
+
+All python script within this folder will be included, each module <b>MUST</b> have a predefined structure like following:
+
+    import __builtin__
+
+    class Extender(__builtin__.plugin_hook):
+
+        def recv(self, forwarder, buffersize, flags=None):
+            print "MyRecv"
+            return super(Extender, self).recv(forwarder, buffersize, flags)
+
+        def bind(self, address):
+            print "MyBind"
+            super(Extender, self).bind(address)
+
+        def connect(self, address):
+            print "MyConnect"
+            super(Extender, self).connect(address)
+
+        def sendall(self, forwarder, data, flags=None):
+            print "MySendAll"
+            super(Extender, self).sendall(forwarder, data, flags)
+
+Is possible to override predefined methods such as:
+
+- recv
+- bind
+- connect
+- sendall
+
+A chain of plugins will be generated at runtime so no magic is needed to run multiple plugins.
+
+# Help
 
     py-forwarder.py -h
     py-forwarder.py --help
