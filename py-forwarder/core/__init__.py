@@ -19,7 +19,6 @@ class MySocket(_socket.SocketType):
             self.raw_requestline = self.rfile.readline()
             self.error_code = self.error_message = None
             self.parse_request()
-            super(BaseHTTPRequestHandler, self).__init__()
 
         def send_error(self, code, message=None):
             self.error_code = code
@@ -108,7 +107,7 @@ class PluginHook(MySocket):
                 exec "from {} import Extender as MainCore{}".format(py, py)
                 exec "self.__class__ = MainCore{}".format(py)
                 exec "__builtin__.plugin_hook = MainCore{}".format(py)
-            exec "super(PluginHook, self).__init__(args[0], args[1])"
+            super(PluginHook, self).__init__(args[0], args[1])
         else:
             super(PluginHook, self).__init__(args[0], args[1])
 
