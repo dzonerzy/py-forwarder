@@ -1,7 +1,8 @@
+import __builtin__
 import _socket
+import glob
 import sys
 import os
-import glob
 from BaseHTTPServer import BaseHTTPRequestHandler
 from StringIO import StringIO
 
@@ -93,3 +94,22 @@ class MySocket(_socket.SocketType):
             return None
         return data
 
+    def setsockopt(self, level, option, value):
+        super(MySocket, self).setsockopt(level, option, value)
+
+
+class PluginHook(MySocket):
+    def __init__(self, *args):
+        if args[2] is not None:
+            files = glob.glob("{}/*.py".format(args[2]))
+            sys.path.insert(0, os.path.abspath(args[2]))
+            for py in files:
+                py = os.path.basename(py).replace(".py", "")
+                exec "from {} import Extender as MainCore{}".format(py, py)
+                exec "self.__class__ = MainCore{}".format(py)
+                exec "__builtin__.plugin_hook = MainCore{}".format(py)
+            exec "super(PluginHook, self).__init__(args[0], args[1])"
+        else:
+            super(PluginHook, self).__init__(args[0], args[1])
+
+__builtin__.plugin_hook = PluginHook

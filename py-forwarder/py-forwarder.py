@@ -17,10 +17,12 @@ import time
 
 
 from errors import ForwardUpstreamConnect, ForwardCannotBindAddress
-from core import MySocket, PluginCore
+from core import MySocket as MainCore
+from core import PluginHook as PluginCore
 
 
 class PortForwarder:
+    config = None
     fsock = None
     address_from = ()
     address_to = ()
@@ -33,11 +35,12 @@ class PortForwarder:
     know_client = []
 
     def __init__(self, config):
+        self.config = config
         self.dumphttp = config.dump_http_req if config.dump_http_req is not None else None
         self.dumpfile = config.dump_file if config.dump_file is not None else None
         self.dumpformat = config.dump_format if config.dump_format is not None else None
-        socket.socket = MySocket
-        self.fsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, config.plugin_dir)
+        socket.socket = MainCore
+        self.fsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sys.excepthook = self.self_except
         self.address_from = tuple(config.from_addr.split(":"))
         self.address_to = tuple(config.to_addr.split(":"))
@@ -80,7 +83,8 @@ class PortForwarder:
                 raise ForwardUpstreamConnect()
 
     def connect_upstream(self):
-        tsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        socket.socket = PluginCore if self.config.plugin_dir is not None else MainCore
+        tsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, self.config.plugin_dir)
         try:
             tsock.connect(self.address_to)
         except socket.error:
