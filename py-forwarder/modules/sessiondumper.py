@@ -14,7 +14,7 @@ class Extender(__builtin__.plugin_hook):
                       "jauth", "users", "user", "authentication", "token"]
 
     class FakeSocket(StringIO):
-        def makefile(self, *args, **kw):
+        def makefile(self, *args, **kwargs):
             return self
 
     def recv(self, forwarder, buffersize, flags=None):
@@ -24,7 +24,7 @@ class Extender(__builtin__.plugin_hook):
                 response = HTTPResponse(self.FakeSocket(data))
                 response.begin()
                 for header in response.getheaders():
-                    if header[0] == "set-cookie":  # maybe started a new session?
+                    if header[0] in ["set-cookie", "cookie"]:  # maybe started a new session?
                         for cookie in self.sessioncookies:
                             if cookie in header[1]:
                                 print "[*] Got session => ", header[1]
@@ -39,4 +39,14 @@ class Extender(__builtin__.plugin_hook):
         super(Extender, self).connect(address)
 
     def sendall(self, forwarder, data, flags=None):
+        if len(data) > 0:
+            try:
+                request = self.HTTPReq(data)
+                for header in request.headers:
+                    if header == "cookie":  # maybe started a new session?
+                        for cookie in self.sessioncookies:
+                            if cookie in request.headers.getheader(header):
+                                print "[*] Got session => ", request.headers.getheader(header)
+            except AttributeError:
+                pass  # maybe not response or https
         super(Extender, self).sendall(forwarder, data, flags)
