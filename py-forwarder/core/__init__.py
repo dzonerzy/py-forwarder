@@ -4,24 +4,27 @@ import glob
 import sys
 import os
 from BaseHTTPServer import BaseHTTPRequestHandler
+from httplib import HTTPResponse
 from StringIO import StringIO
 
-class MySocket(_socket.SocketType):
-    address = None
-
-    def __init__(self, *args):
-        super(MySocket, self).__init__(args[0], args[1])
+class Utils:
+    def __init__(self):
+        pass
 
     class HTTPReq(object, BaseHTTPRequestHandler):
-        def __init__(self, request_text):
-            self.rfile = StringIO(request_text)
-            self.raw_requestline = self.rfile.readline()
-            self.error_code = self.error_message = None
-            self.parse_request()
+            def __init__(self, request_text):
+                self.rfile = StringIO(request_text)
+                self.raw_requestline = self.rfile.readline()
+                self.error_code = self.error_message = None
+                self.parse_request()
 
-        def send_error(self, code, message=None):
-            self.error_code = code
-            self.error_message = message
+            def send_error(self, code, message=None):
+                self.error_code = code
+                self.error_message = message
+
+    class FakeSocket(StringIO):
+        def makefile(self, *args, **kwargs):
+            return self
 
     class Dumper:
         data = None
@@ -42,6 +45,26 @@ class MySocket(_socket.SocketType):
                 buf += "%04X   %-*s   %s\n" % (n, length * 3, hexdata, s)
                 n += length
             return buf
+
+    def dump(self, data, inout=0):
+        dumper = self.Dumper(data, inout)
+        return dumper.dump()
+
+    def parse_request(self, req):
+        return self.HTTPReq(req)
+
+    def parse_response(self, resp):
+        response = HTTPResponse(self.FakeSocket(resp))
+        response.begin()
+        return response
+
+
+class MySocket(_socket.SocketType):
+    address = None
+    utility = Utils()
+
+    def __init__(self, *args):
+        super(MySocket, self).__init__(args[0], args[1])
 
     def connect(self, address):
         self.address = tuple([address[0], int(address[1])])
@@ -64,8 +87,7 @@ class MySocket(_socket.SocketType):
             if forwarder.dumpfile is not None:
                 with open(forwarder.dumpfile, "a") as dump:
                     if forwarder.dumpformat == "HEX":
-                        packet = self.Dumper(data)
-                        dump.write(packet.dump())
+                        dump.write(self.utility.dump(data, 0))
                     elif forwarder.dumpformat == "RAW":
                         dump.write(data)
                     dump.close()
@@ -81,8 +103,7 @@ class MySocket(_socket.SocketType):
             if forwarder.dumpfile is not None:
                 with open(forwarder.dumpfile, "a") as dump:
                     if forwarder.dumpformat == "HEX":
-                        packet = self.Dumper(data, 1)
-                        dump.write(packet.dump())
+                        dump.write(self.utility.dump(data, 1))
                     elif forwarder.dumpformat == "RAW":
                         dump.write(data)
                     dump.close()

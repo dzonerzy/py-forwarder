@@ -1,9 +1,5 @@
 import __builtin__
 
-from StringIO import StringIO
-from httplib import HTTPResponse
-
-
 class Extender(__builtin__.plugin_hook):
 
     name = "Session dumper"
@@ -13,16 +9,11 @@ class Extender(__builtin__.plugin_hook):
                       "users", "login", "SESSIONID", "sessid", "jsession",
                       "jauth", "users", "user", "authentication", "token"]
 
-    class FakeSocket(StringIO):
-        def makefile(self, *args, **kwargs):
-            return self
-
     def recv(self, forwarder, buffersize, flags=None):
         data = super(Extender, self).recv(forwarder, buffersize, flags)
         if len(data) > 0:
             try:
-                response = HTTPResponse(self.FakeSocket(data))
-                response.begin()
+                response = self.parse_response(data)
                 for header in response.getheaders():
                     if header[0] in ["set-cookie", "cookie"]:  # maybe started a new session?
                         for cookie in self.sessioncookies:
@@ -41,7 +32,7 @@ class Extender(__builtin__.plugin_hook):
     def sendall(self, forwarder, data, flags=None):
         if len(data) > 0:
             try:
-                request = self.HTTPReq(data)
+                request = self.parse_request(data)
                 for header in request.headers:
                     if header == "cookie":  # maybe started a new session?
                         for cookie in self.sessioncookies:
